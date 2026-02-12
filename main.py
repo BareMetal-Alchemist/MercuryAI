@@ -3,8 +3,11 @@ import pandas
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
+from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
-
+import geopandas as gdp
+import contextily as ctx
+import plotly.express as px
 
 
 # Clean and Process Data
@@ -67,6 +70,8 @@ print(classification_report(y_test, pred))
 
 # Visualize
 
+
+
 fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
 colors = {"Low": "green", "Medium": "orange", "High": "red"}
@@ -120,4 +125,69 @@ axes[1].legend()
 plt.tight_layout()
 plt.show()
 
+# Geopandas + Contextily
+gdf = gdp.GeoDataFrame(
+    df,
+    geometry=gdp.points_from_xy(df["LONGITUDE"], df["LATITUDE"]),
+    crs="EPSG:4326"
+)
 
+gdf = gdf.to_crs(epsg=3857)
+
+fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+
+colors = {"Low": "green", "Medium": "orange", "High": "red"}
+
+for r in ["Low", "Medium", "High"]:
+    subset = gdf[gdf["risk"] == r]
+    subset.plot(
+        ax=axes[0],
+        color=colors[r],
+        markersize=5,
+        alpha=0.6,
+        label=r
+    )
+
+ctx.add_basemap(axes[0])
+axes[0].set_title("Ground Truth Mercury Risk")
+axes[0].legend()
+
+
+for r in ["Low", "Medium", "High"]:
+    subset = gdf[gdf["predicted"] == r]
+    subset.plot(
+        ax=axes[1],
+        color=colors[r],
+        markersize=5,
+        alpha=0.6,
+        label=r
+    )
+
+ctx.add_basemap(axes[1])
+axes[1].set_title("Model Predicted Risk")
+axes[1].legend()
+
+plt.tight_layout()
+plt.show()
+
+
+# 3D
+scaler = MinMaxScaler()
+df["HG_scaled"] = scaler.fit_transform(df[["HG_log"]])
+
+fig = px.scatter_3d(
+    df,
+    x="LONGITUDE",
+    y="LATITUDE",
+    z="HG_scaled",
+    color="risk",
+    color_discrete_map={
+        "Low": "green",
+        "Medium": "orange",
+        "High": "red"
+    },
+    opacity=0.6
+)
+
+fig.update_layout(title="Mecury Risk(3D: height = log Hg)")
+fig.show()
